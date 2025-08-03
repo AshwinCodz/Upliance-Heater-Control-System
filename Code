@@ -1,0 +1,83 @@
+#include <DHT.h>
+#define DHTPIN 15       
+#define DHTTYPE DHT22
+#define heater 4    
+#define gled 2     
+#define buzz 13     
+DHT dht(DHTPIN, DHTTYPE);
+const float normaltemp = 30.0;
+const float lowtemp = 27.0;
+const float hightemp = 35.0;
+enum state {
+  idle,
+  heating,
+  stable,
+  heated,
+  overheating
+};
+state cstate = idle;
+unsigned long lrtime = 0;
+const unsigned long gap = 1000; 
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  pinMode(heater, OUTPUT);
+  pinMode(gled, OUTPUT);
+  pinMode(buzz, OUTPUT);
+  Serial.println("Heater Control System Started...");
+}
+void loop() {
+  unsigned long ctime = millis();
+  if (ctime - lrtime >= gap) {
+    lrtime = ctime;
+    float temp = dht.readTemperature();
+    if (isnan(temp)) {
+      Serial.println("No sensor data!!!!");
+      return;
+    }
+    if (temp >= hightemp) {
+      cstate = overheating;
+    } else if (temp >= normaltemp) {
+      cstate = heated;
+    } else if (temp >= lowtemp && temp < normaltemp) {
+      cstate = stable;
+    } else {
+      cstate = heating;
+    }
+    updatestate(cstate, temp);
+  }
+}
+void updatestate(state state, float temperature) {
+  switch (state) {
+    case idle:
+      digitalWrite(heater, LOW);
+      digitalWrite(gled, LOW);
+      digitalWrite(buzz, LOW);
+      Serial.printf("Heater is idle,Temp : %.2f°C,Heater : OFF\n", temperature);
+      break;
+    case heating:
+      digitalWrite(heater, HIGH);
+      digitalWrite(gled, LOW);
+      digitalWrite(buzz, LOW);
+      Serial.printf("Heating is in process : %.2f°C,Heater: ON\n", temperature);
+      break;
+    case stable:
+      digitalWrite(heater, LOW);
+      digitalWrite(gled, LOW);
+      digitalWrite(buzz, LOW);
+      Serial.printf("Heater Stable ,Temp: %.2f°C,Heater: Pulsed OFF\n", temperature);
+      break;
+    case heated:
+      digitalWrite(heater, LOW);
+      digitalWrite(gled, HIGH);
+      digitalWrite(buzz, LOW);
+      Serial.printf("Finished heating, Temp: %.2f°C,Heater: OFF\n", temperature);
+      break;
+    case overheating:
+      digitalWrite(heater, LOW);
+      digitalWrite(gled, LOW);
+      digitalWrite(buzz, HIGH);
+      Serial.printf("Warning, heater is overheating, Temp: %.2f°C,Heater: OFF | Buzzer: ON\n", temperature);
+      break;
+  }
+}
